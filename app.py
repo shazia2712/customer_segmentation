@@ -21,10 +21,12 @@ def preprocessing(df):
     for col in df.columns:              # it iterates throug all cols
         if df[col].dtype==object:       # if col is obj it performs encoding
             df[col] = encoder.fit_transform(df[col])
+    return df
 
 def elbow(df):
     out = []
     k_values = range(1,11)
+    
     for i in k_values:
         model = KMeans(n_clusters= i)
         model.fit(df)
@@ -51,14 +53,14 @@ if file:
                                     default = ["Annual Income (k$)", "Spending Score (1-100)"])
     if features:
         df = df.loc[:, features]    # only user selected dataframe will be printed
-        preprocessing(df)
+        df = preprocessing(df)
         st.subheader("Sample Data")
         st.write(df.sample(10))
 
     # Model Training
     K = elbow(df)
     st.subheader(f"Optimized K : {K}")     # the optimized k value will be printed
-    model = KMeans(n_clusters = K)
+    model = KMeans(n_clusters = K, random_state = 42, n_init = "auto")
     model.fit(df)
     labels = model.labels_      # prediction
     df["clusters"] = labels
