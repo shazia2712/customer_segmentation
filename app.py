@@ -1,11 +1,11 @@
-# Import necessary libraries
+# Import libraries
 import pandas as pd
 import streamlit as st
 from sklearn.cluster import KMeans
 from kneed import KneeLocator
 
 
-# Page Setup
+# Page setup
 st.set_page_config(
     page_icon="👥",
     page_title="Customer Segmentation",
@@ -16,74 +16,80 @@ st.set_page_config(
 # Sidebar
 with st.sidebar:
     st.title("👥 Customer Segmentation")
-    st.write("Select features for customer clustering.")
 
 
-# Elbow Method
+# Elbow method
 def elbow(df):
-    out = []
+
+    inertia = []
     k_values = range(1, 11)
 
-    for i in k_values:
+    for k in k_values:
+
         model = KMeans(
-            n_clusters=i,
+            n_clusters=k,
             random_state=42,
             n_init="auto"
         )
 
         model.fit(df)
-        out.append(model.inertia_)
+        inertia.append(model.inertia_)
 
     KL = KneeLocator(
         k_values,
-        out,
+        inertia,
         curve="convex",
         direction="decreasing"
     )
 
-    df1 = pd.DataFrame({
-        "k_val": k_values,
-        "inertia": out
+    elbow_df = pd.DataFrame({
+        "K": k_values,
+        "Inertia": inertia
     })
 
     st.subheader("Elbow Curve")
 
     st.line_chart(
-        data=df1,
-        x="k_val",
-        y="inertia"
+        elbow_df,
+        x="K",
+        y="Inertia"
     )
 
     return KL.elbow
 
 
-# Upload the file
+# Upload file
 file = st.file_uploader(
     "Upload Customer Dataset",
     type=["csv"]
 )
 
 
-# Read CSV
 if file:
 
+    # Read dataset
     df = pd.read_csv(file)
 
-    # Only allow numerical columns for K-Means
-    numeric_features = df.select_dtypes(
-        include=["int64", "float64"]
-    ).columns.tolist()
+    # Convert Gender into numbers
+    if "Gender" in df.columns:
 
-    # Remove CustomerID because it is only an identifier
-    if "CustomerID" in numeric_features:
-        numeric_features.remove("CustomerID")
+        df["Gender"] = df["Gender"].map({
+            "Male": 0,
+            "Female": 1
+        })
+
+    # Remove CustomerID
+    if "CustomerID" in df.columns:
+
+        df = df.drop("CustomerID", axis=1)
+
 
     # Sidebar feature selection
     with st.sidebar:
 
         features = st.multiselect(
             "Select Features:",
-            options=numeric_features,
+            options=df.columns,
             default=[
                 "Annual Income (k$)",
                 "Spending Score (1-100)"
@@ -91,19 +97,19 @@ if file:
         )
 
 
-    # Check if enough features are selected
+    # Check features
     if len(features) < 2:
 
-        st.warning(
-            "⚠️ Please select at least 2 numerical features."
-        )
+        st.warning("⚠️ Please select at least 2 features.")
 
     else:
 
-        # Select chosen features
+        # Select features
         df_selected = df[features].copy()
 
-        # Display sample data
+        # Remove missing values
+        df_selected = df_selected.dropna()
+
         st.subheader("Sample Data")
 
         st.write(
@@ -113,27 +119,16 @@ if file:
         )
 
 
-        # Find optimal K
+        # Find best K
         K = elbow(df_selected)
 
-        # Check if elbow was found
         if K is None:
-
-            st.warning(
-                "⚠️ Could not automatically determine the optimal number of clusters."
-            )
-
             K = 5
-
-            st.info(
-                "Using K = 5 as the default number of clusters."
-            )
-
 
         st.subheader(f"Optimized K: {K}")
 
 
-        # Model Training
+        # K-Means model
         model = KMeans(
             n_clusters=K,
             random_state=42,
@@ -142,34 +137,34 @@ if file:
 
         model.fit(df_selected)
 
-
-        # Get cluster labels
-        labels = model.labels_
-
-
-        # Add clusters
-        df_selected["clusters"] = labels
+        # Add cluster labels
+        df_selected["Cluster"] = model.labels_
 
 
-        # Cluster Visualization
+        # Show clusters
+        st.subheader("Customer Clusters")
+
+        st.write(df_selected)
+
+
+        # Visualization
         st.subheader("Cluster Visualization")
 
-
-        # Only create scatter plot when these two features are selected
         if (
             "Annual Income (k$)" in features
             and "Spending Score (1-100)" in features
         ):
 
             st.scatter_chart(
-                data=df_selected,
+                df_selected,
                 x="Annual Income (k$)",
                 y="Spending Score (1-100)",
-                color="clusters"
+                color="Cluster"
             )
 
         else:
 
             st.info(
-                "📊 Select 'Annual Income (k$)' and 'Spending Score (1-100)' to see the customer cluster visualization."
+                "Select Annual Income and Spending Score "
+                "to see the cluster visualization."
             )
