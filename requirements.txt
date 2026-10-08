@@ -1,0 +1,4 @@
+pandas
+streamlit
+scikit-learn>=1.4
+kneed
