@@ -15,7 +15,8 @@ st.set_page_config(
 
 # Sidebar
 with st.sidebar:
-    st.title("Customer Segmentation")
+    st.title("👥 Customer Segmentation")
+    st.write("Select features for customer clustering.")
 
 
 # Elbow Method
@@ -68,47 +69,107 @@ if file:
 
     df = pd.read_csv(file)
 
-    # Select only numerical features for clustering
-    features = [
-        "Annual Income (k$)",
-        "Spending Score (1-100)"
-    ]
+    # Only allow numerical columns for K-Means
+    numeric_features = df.select_dtypes(
+        include=["int64", "float64"]
+    ).columns.tolist()
 
-    df = df[features]
+    # Remove CustomerID because it is only an identifier
+    if "CustomerID" in numeric_features:
+        numeric_features.remove("CustomerID")
 
-    # Display sample data
-    st.subheader("Sample Data")
-    st.write(df.sample(min(10, len(df))))
+    # Sidebar feature selection
+    with st.sidebar:
 
-
-    # Find optimal K
-    K = elbow(df)
-
-    st.subheader(f"Optimized K: {K}")
-
-
-    # Model Training
-    model = KMeans(
-        n_clusters=K,
-        random_state=42,
-        n_init="auto"
-    )
-
-    model.fit(df)
-
-    # Get cluster labels
-    labels = model.labels_
-
-    # Add clusters
-    df["clusters"] = labels
+        features = st.multiselect(
+            "Select Features:",
+            options=numeric_features,
+            default=[
+                "Annual Income (k$)",
+                "Spending Score (1-100)"
+            ]
+        )
 
 
-    # Cluster Visualization
-    st.subheader("Cluster Visualization")
+    # Check if enough features are selected
+    if len(features) < 2:
 
-    st.scatter_chart(
-        data=df,
-        x="Annual Income (k$)",
-        y="Spending Score (1-100)",
-        color="clusters"
-    )
+        st.warning(
+            "⚠️ Please select at least 2 numerical features."
+        )
+
+    else:
+
+        # Select chosen features
+        df_selected = df[features].copy()
+
+        # Display sample data
+        st.subheader("Sample Data")
+
+        st.write(
+            df_selected.sample(
+                min(10, len(df_selected))
+            )
+        )
+
+
+        # Find optimal K
+        K = elbow(df_selected)
+
+        # Check if elbow was found
+        if K is None:
+
+            st.warning(
+                "⚠️ Could not automatically determine the optimal number of clusters."
+            )
+
+            K = 5
+
+            st.info(
+                "Using K = 5 as the default number of clusters."
+            )
+
+
+        st.subheader(f"Optimized K: {K}")
+
+
+        # Model Training
+        model = KMeans(
+            n_clusters=K,
+            random_state=42,
+            n_init="auto"
+        )
+
+        model.fit(df_selected)
+
+
+        # Get cluster labels
+        labels = model.labels_
+
+
+        # Add clusters
+        df_selected["clusters"] = labels
+
+
+        # Cluster Visualization
+        st.subheader("Cluster Visualization")
+
+
+        # Only create scatter plot when these two features are selected
+        if (
+            "Annual Income (k$)" in features
+            and "Spending Score (1-100)" in features
+        ):
+
+            st.scatter_chart(
+                data=df_selected,
+                x="Annual Income (k$)",
+                y="Spending Score (1-100)",
+                color="clusters"
+            )
+
+        else:
+
+            st.info(
+                "📊 Select 'Annual Income (k$)' and 'Spending Score (1-100)' to see the customer cluster visualization."
+            )
